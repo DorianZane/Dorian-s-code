@@ -1,0 +1,126 @@
+can you explain this long code to me from scratch? # file: prob_game_visualize.py
+import itertools
+import random
+from collections import Counter
+import matplotlib.pyplot as plt
+
+# ---------- STEP 1: Random, fixed colour mapping ----------
+BALLS = list(range(1, 11))
+BASE_COLORS = ["yellow", "blue", "red", "green", "orange", "purple", "pink", "brown", "black", "white"]
+
+def assign_colors(seed=None):
+    rng = random.Random(seed)
+    colors = BASE_COLORS[:]
+    rng.shuffle(colors)
+    mapping = {ball: color for ball, color in zip(BALLS, colors)}
+    assert len(mapping) == 10 and len(set(mapping.values())) == 10
+    assert "yellow" in mapping.values() and "blue" in mapping.values()
+    return mapping
+
+# ---------- Conditions ----------
+def cond_sum_gt_7(combo):
+    return sum(combo) > 7
+
+def cond_has_yellow_and_blue(combo, color_map):
+    cols = {color_map[n] for n in combo}
+    return ("yellow" in cols) and ("blue" in cols)
+
+def cond_consecutive(combo):
+    a, b, c = sorted(combo)
+    return b == a + 1 and c == b + 1
+
+def all_three(combo, color_map):
+    return cond_sum_gt_7(combo) and cond_has_yellow_and_blue(combo, color_map) and cond_consecutive(combo)
+
+# ---------- Exact probabilities ----------
+def exact_probabilities(color_map):
+    all_combos = list(itertools.combinations(BALLS, 3))  # 120 combos
+    total = len(all_combos)
+
+    c1 = sum(1 for c in all_combos if cond_sum_gt_7(c))
+    c2 = sum(1 for c in all_combos if cond_has_yellow_and_blue(c, color_map))
+    c3 = sum(1 for c in all_combos if cond_consecutive(c))
+    c123 = sum(1 for c in all_combos if all_three(c, color_map))
+
+    return {
+        "total_outcomes": total,
+        "counts": {"c1": c1, "c2": c2, "c3": c3, "c123": c123},
+        "P(sum>7)": c1 / total,
+        "P(has yellow & blue)": c2 / total,
+        "P(consecutive)": c3 / total,
+        "P(all three)": c123 / total,
+    }
+
+# ---------- Simulation ----------
+def simulate(color_map, trials=200_000, seed=0, return_sums=False):
+    rng = random.Random(seed)
+    hits = Counter()
+    sums = []
+    for _ in range(trials):
+        combo = tuple(sorted(rng.sample(BALLS, 3)))  # uniform sample without replacement
+        if cond_sum_gt_7(combo):
+            hits["c1"] += 1
+        if cond_has_yellow_and_blue(combo, color_map):
+            hits["c2"] += 1
+        if cond_consecutive(combo):
+            hits["c3"] += 1
+        if all_three(combo, color_map):
+            hits["c123"] += 1
+        if return_sums:
+            sums.append(sum(combo))
+    sim = {
+        "trials": trials,
+        "P(sum>7)": hits["c1"]/trials,
+        "P(has yellow & blue)": hits["c2"]/trials,
+        "P(consecutive)": hits["c3"]/trials,
+        "P(all three)": hits["c123"]/trials,
+    }
+    return (sim, sums) if return_sums else (sim, None)
+
+# ---------- Visualization ----------
+def plot_exact_vs_sim(exact, sim, savepath="prob_compare.png"):
+    labels = ["P(sum>7)", "P(yellow & blue)", "P(consecutive)", "P(all three)"]
+    exact_vals = [exact[k] for k in labels]
+    sim_vals   = [sim[k]   for k in labels]
+
+    # simple grouped bars
+    x = range(len(labels))
+    width = 0.35
+
+    plt.figure()
+    plt.bar([i - width/2 for i in x], exact_vals, width, label="Exact")
+    plt.bar([i + width/2 for i in x], sim_vals,   width, label="Simulation")
+    plt.xticks(list(x), labels, rotation=15)
+    plt.ylabel("Probability")
+    plt.title("Exact vs Simulation")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(savepath, dpi=160)
+    plt.close()
+
+def plot_sum_histogram(sums, savepath="sum_histogram.png"):
+    plt.figure()
+    plt.hist(sums, bins=range(min(sums), max(sums)+2), align="left", rwidth=0.9)
+    plt.xlabel("Sum of three numbers")
+    plt.ylabel("Frequency")
+    plt.title("Distribution of sums from simulation")
+    plt.tight_layout()
+    plt.savefig(savepath, dpi=160)
+    plt.close()
+
+# ---------- Run ----------
+if __name__ == "__main__":
+    # Fix mapping once (change/remove seed to see a different mapping)
+    color_map = assign_colors(seed=42)
+    print("Colour mapping:", color_map)
+
+    exact = exact_probabilities(color_map)
+    print("Exact probabilities:", exact)
+
+    sim, sums = simulate(color_map, trials=200_000, seed=123, return_sums=True)
+    print("Simulation:", sim)
+
+    # Make visuals
+    plot_exact_vs_sim(exact, sim, savepath="prob_compare.png")
+    plot_sum_histogram(sums, savepath="sum_histogram.png")
+    print("Saved: prob_compare.png and sum_histogram.png")
