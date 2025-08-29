@@ -1,4 +1,3 @@
-can you explain this long code to me from scratch? # file: prob_game_visualize.py
 import itertools
 import random
 from collections import Counter
